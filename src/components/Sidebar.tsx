@@ -1,10 +1,12 @@
 import { forwardRef } from 'react'
 import type { RefObject } from 'react'
-import type { Annotation, ConflictRule } from '../types'
+import type { Annotation, Baseline, ConflictRule } from '../types'
 import { REASON_LABEL } from '../lib/relocation'
 import { badgeColor } from '../lib/segments'
 import type { ConflictItem } from '../lib/conflicts'
 import type { CoverageIssue, CoverageResult } from '../lib/coverage'
+import type { DiffItem } from '../lib/snapshot'
+import { SnapshotSection } from './SnapshotSection'
 
 interface Props {
   text: string
@@ -20,6 +22,13 @@ interface Props {
   onFocusCoverage: (issue: CoverageIssue) => void
   /** 覆盖审计分区的滚动定位 ref（顶栏按钮用） */
   coverageSectionRef?: RefObject<HTMLElement | null>
+  /** 标注快照对比 */
+  baseline: Baseline | null
+  diffs: DiffItem[]
+  onSaveBaseline: () => void
+  onToggleReview: (item: DiffItem) => void
+  /** 快照对比分区的滚动定位 ref（顶栏按钮用） */
+  diffSectionRef?: RefObject<HTMLElement | null>
   onFocus: (a: Annotation) => void
   onEdit: (a: Annotation) => void
   onRebindStart: (a: Annotation) => void
@@ -522,6 +531,16 @@ export const Sidebar = forwardRef<HTMLElement, Props>(function Sidebar(props, se
           </details>
         )}
       </section>
+
+      <SnapshotSection
+        baseline={props.baseline}
+        diffs={props.diffs}
+        activeId={props.activeId}
+        onSaveBaseline={props.onSaveBaseline}
+        onFocus={props.onFocus}
+        onToggleReview={props.onToggleReview}
+        sectionRef={props.diffSectionRef}
+      />
 
       <section className="side-section">
         <div className="side-heading-row">

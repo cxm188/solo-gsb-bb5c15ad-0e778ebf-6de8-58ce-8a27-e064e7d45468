@@ -61,6 +61,37 @@ export interface IgnoredConflict {
   createdAt: number
 }
 
+/** 基线中一条标注的快照：仅保留参与对比的字段（区间/状态、引文、标签、备注） */
+export interface BaselineEntry {
+  id: string
+  quote: string
+  start: number
+  end: number
+  note: string
+  tags: string[]
+  status: AnnotationStatus
+}
+
+/**
+ * 标注基线快照：保存时的完整标注集。
+ * 全应用同一时间只有一份基线；重建会覆盖旧基线并清空全部已审记录。
+ */
+export interface Baseline {
+  createdAt: number
+  entries: BaselineEntry[]
+}
+
+/**
+ * 已审阅差异的记录：标注 ID + 差异内容签名。
+ * 差异内容（类型 + 逐字段前后值）不变时签名稳定，标记已审持续有效；
+ * 内容再次变化产生新签名 → 该差异重新出现为未审；恢复成基线 → 差异项本身消失。
+ */
+export interface ReviewedDiff {
+  annotationId: string
+  signature: string
+  createdAt: number
+}
+
 export interface DocumentData {
   title: string
   text: string
@@ -71,6 +102,10 @@ export interface DocumentData {
   ignoredConflicts: IgnoredConflict[]
   /** 标签覆盖审计：应共同覆盖全文的标签集合 */
   coverageTags: string[]
+  /** 标注基线快照（唯一）；null 表示尚未保存基线 */
+  baseline: Baseline | null
+  /** 已审阅差异的签名记录 */
+  reviewedDiffs: ReviewedDiff[]
   updatedAt: number
 }
 
@@ -97,6 +132,25 @@ export interface ExportPayload {
   }>
   /** 标签覆盖审计选择的标签（旧版文件缺省时按空数组处理） */
   coverageTags: string[]
+  /** 标注基线快照（旧版文件缺省时按 null 处理） */
+  baseline: {
+    createdAt: string
+    entries: Array<{
+      id: string
+      status: AnnotationStatus
+      quote: string
+      note: string
+      tags: string[]
+      start: number
+      end: number
+    }>
+  } | null
+  /** 已审差异记录：标注 ID + 差异内容签名（旧版文件缺省时按空数组处理） */
+  reviewedDiffs: Array<{
+    annotationId: string
+    signature: string
+    createdAt: string
+  }>
   annotations: Array<{
     id: string
     status: AnnotationStatus

@@ -1363,6 +1363,183 @@ button {
   box-shadow: 0 0 0 4px rgba(47, 107, 255, 0.28) !important;
 }
 
+/* ---------- 标注快照对比 ---------- */
+
+.side-heading-diff {
+  color: #6d4aff;
+}
+
+.diff-count-badge {
+  background: #6d4aff;
+}
+
+.foot-diff {
+  color: #6d4aff;
+  font-weight: 600;
+}
+
+.diff-item {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-left-width: 3px;
+  border-radius: var(--radius);
+  padding: 9px 11px;
+  margin-bottom: 10px;
+}
+
+.diff-added {
+  border-left-color: #1a9e54;
+}
+
+.diff-deleted {
+  border-left-color: var(--danger);
+}
+
+.diff-modified {
+  border-left-color: #e8a020;
+}
+
+.diff-item-active {
+  border-color: var(--primary);
+  border-left-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(47, 107, 255, 0.18);
+}
+
+.diff-reviewed {
+  opacity: 0.62;
+}
+
+.diff-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+}
+
+.diff-head .ann-badge {
+  margin-top: 5px;
+}
+
+.diff-kind {
+  flex-shrink: 0;
+  align-self: flex-start;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 5px;
+  padding: 2px 7px;
+  margin-top: 1px;
+}
+
+.diff-kind-added {
+  background: #e6f7ec;
+  color: #157a3e;
+}
+
+.diff-kind-deleted {
+  background: #fdeeee;
+  color: #a52727;
+}
+
+.diff-kind-modified {
+  background: var(--warn-bg);
+  color: #945800;
+}
+
+.diff-quote {
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+
+.diff-deleted-flag {
+  color: var(--danger);
+  font-style: normal;
+  font-weight: 600;
+}
+
+.diff-reviewed-pill {
+  flex-shrink: 0;
+  align-self: flex-start;
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 5px;
+  padding: 2px 7px;
+  background: #ecfdf3;
+  color: #1a6b3c;
+}
+
+.diff-fields {
+  margin: 8px 0 0 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.diff-field {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.diff-field-label {
+  flex-shrink: 0;
+  min-width: 62px;
+  color: var(--ink-faint);
+  font-size: 11.5px;
+}
+
+.diff-field-values {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+  word-break: break-word;
+}
+
+.diff-before {
+  color: #a52727;
+  background: #fdf3f3;
+  border-radius: 4px;
+  padding: 0 4px;
+  text-decoration: line-through;
+  text-decoration-color: rgba(165, 39, 39, 0.45);
+}
+
+.diff-arrow {
+  color: var(--ink-faint);
+  font-size: 11px;
+}
+
+.diff-after {
+  color: #157a3e;
+  background: #eef9f1;
+  border-radius: 4px;
+  padding: 0 4px;
+}
+
+.diff-note {
+  white-space: pre-wrap;
+}
+
+.diff-tags {
+  margin: 0;
+}
+
+.diff-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 9px 0 0 15px;
+}
+
 /* ---------- 响应式 ---------- */
 
 @media (max-width: 980px) {

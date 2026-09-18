@@ -543,4 +543,164 @@ console.log('  ✓ 旧数据无损兼容并自动补齐冲突字段')
 root4.unmount()
 container4.remove()
 container3.remove()
+
+// 标注快照对比：保存基线 → 修改/删除产生差异 → 已审签名持久化 → 重建基线清空已审
+{
+  // jsdom 的 confirm 未实现，删除 / 重建基线前打桩为「确认」
+  ;(globalThis as unknown as { confirm: () => boolean }).confirm = () => true
+
+  const snapText = '春眠不觉晓，处处闻啼鸟。夜来风雨声，花落知多少。'
+  const posA = snapText.indexOf('春眠不觉晓')
+  const posB = snapText.indexOf('花落知多少')
+  const snapDoc = {
+    title: '快照文档',
+    text: snapText,
+    updatedAt: Date.now(),
+    annotations: [
+      {
+        id: 'sn_a',
+        quote: '春眠不觉晓',
+        start: posA,
+        end: posA + 5,
+        note: '首句',
+        tags: ['景'],
+        status: 'bound',
+        createdAt: 1,
+        updatedAt: 1,
+        contextBefore: '',
+        contextAfter: '',
+      },
+      {
+        id: 'sn_b',
+        quote: '花落知多少',
+        start: posB,
+        end: posB + 5,
+        note: '',
+        tags: ['情'],
+        status: 'bound',
+        createdAt: 1,
+        updatedAt: 1,
+        contextBefore: '',
+        contextAfter: '',
+      },
+    ],
+  }
+  localStorage.setItem('anchor-annotation-console:v1', JSON.stringify(snapDoc))
+  const cs = document.createElement('div')
+  cs.id = 'rootsnap'
+  document.body.appendChild(cs)
+  const rs = createRoot(cs)
+  const tick = (ms = 60) => new Promise<void>((resolve) => setTimeout(resolve, ms))
+  await new Promise<void>((resolve) => {
+    rs.render(React.createElement(React.StrictMode, null, React.createElement(App)))
+    setTimeout(resolve, 100)
+  })
+
+  const clickButton = (text: string, root: ParentNode = cs) => {
+    const btn = [...root.querySelectorAll('button')].find(
+      (b) => b.textContent?.trim() === text,
+    ) as HTMLButtonElement | undefined
+    assert.ok(btn, `应存在按钮「${text}」`)
+    btn!.click()
+    return btn!
+  }
+  const saved = () => JSON.parse(localStorage.getItem('anchor-annotation-console:v1')!)
+
+  // 1. 保存基线
+  assert.ok(cs.innerHTML.includes('快照对比'), '侧栏应渲染快照对比分区')
+  clickButton('保存为基线')
+  await tick()
+  assert.strictEqual(saved().baseline.entries.length, 2, '基线应固化 2 条标注')
+  assert.deepStrictEqual(saved().reviewedDiffs, [])
+  assert.ok(cs.innerHTML.includes('与基线一致'), '刚保存基线后应无差异')
+  assert.ok(cs.innerHTML.includes('重建基线'), '已有基线时按钮变为重建')
+  console.log('  ✓ 保存基线：当前标注集固化为唯一基线并持久化')
+
+  // 2. 编辑备注 → 产生「修改」差异，逐字段列出前后值
+  const firstAnn = cs.querySelector('.ann-item') as HTMLElement
+  clickButton('编辑', firstAnn)
+  await tick()
+  const noteArea = cs.querySelector('.form-note') as HTMLTextAreaElement
+  const setArea = Object.getOwnPropertyDescriptor(
+    window.HTMLTextAreaElement.prototype,
+    'value',
+  )!.set!
+  setArea.call(noteArea, '新的备注')
+  noteArea.dispatchEvent(new window.Event('input', { bubbles: true }))
+  await tick()
+  clickButton('保存修改')
+  await tick()
+
+  assert.ok(cs.innerHTML.includes('修改'), '应出现「修改」差异项')
+  const modCard = cs.querySelector('.diff-modified') as HTMLElement
+  assert.ok(modCard, '应渲染修改差异卡片')
+  assert.ok(modCard.textContent!.includes('备注'), '修改项应列出备注字段')
+  assert.ok(modCard.textContent!.includes('首句'), '应展示基线前的备注')
+  assert.ok(modCard.textContent!.includes('新的备注'), '应展示当前备注')
+  assert.strictEqual(cs.querySelectorAll('.diff-item').length, 1, '同一标注只生成一项')
+  assert.ok(cs.querySelector('.topbar-count'), '顶栏快照对比应显示未审数量')
+  assert.ok(cs.innerHTML.includes('未审差异'), '页脚应显示未审差异数')
+  console.log('  ✓ 修改差异：逐字段前后值、顶栏与页脚计数')
+
+  // 3. 定位：已绑定项可定位高亮
+  clickButton('定位', modCard)
+  await tick()
+  assert.ok(cs.querySelector('.diff-item-active'), '定位后差异卡片应高亮')
+  assert.ok(cs.innerHTML.includes('hl-active'), '定位后原文应高亮对应片段')
+
+  // 4. 标记已审 → 签名持久化；内容再次变化 → 重新出现为未审
+  clickButton('标记已审', modCard)
+  await tick()
+  assert.strictEqual(saved().reviewedDiffs.length, 1, '已审记录应持久化')
+  assert.strictEqual(saved().reviewedDiffs[0].annotationId, 'sn_a')
+  assert.ok(cs.querySelector('.diff-reviewed'), '已审卡片应有已审样式')
+  assert.ok(!cs.querySelector('.topbar-count'), '全部已审后顶栏计数消失')
+
+  const firstAnn2 = cs.querySelector('.ann-item') as HTMLElement
+  clickButton('编辑', firstAnn2)
+  await tick()
+  const noteArea2 = cs.querySelector('.form-note') as HTMLTextAreaElement
+  setArea.call(noteArea2, '再改一次')
+  noteArea2.dispatchEvent(new window.Event('input', { bubbles: true }))
+  await tick()
+  clickButton('保存修改')
+  await tick()
+  assert.ok(!cs.querySelector('.diff-reviewed'), '内容再次变化后应重新出现为未审')
+  assert.ok(cs.querySelector('.topbar-count'), '未审计数应恢复')
+  console.log('  ✓ 已审签名：内容不变保持已审，再次变化重新出现')
+
+  // 5. 删除标注 → 「删除」差异项展示基线引文，且不可定位
+  const annItems = [...cs.querySelectorAll('.ann-item')] as HTMLElement[]
+  const itemB = annItems.find((el) => el.textContent!.includes('花落知多少'))!
+  clickButton('删除', itemB)
+  await tick()
+  const delCard = cs.querySelector('.diff-deleted') as HTMLElement
+  assert.ok(delCard, '应出现「删除」差异卡片')
+  assert.ok(delCard.textContent!.includes('花落知多少'), '删除项应展示基线引文')
+  assert.ok(!delCard.textContent!.includes('定位'), '删除项不可定位')
+  assert.strictEqual(cs.querySelectorAll('.diff-item').length, 2, '修改 + 删除共两项')
+
+  // 6. 类型筛选
+  clickButton('删除（1）')
+  await tick()
+  assert.strictEqual(cs.querySelectorAll('.diff-item').length, 1, '筛选删除后只剩一项')
+  assert.ok(cs.querySelector('.diff-deleted'), '筛出的应为删除项')
+  clickButton('全部（2）')
+  await tick()
+  assert.strictEqual(cs.querySelectorAll('.diff-item').length, 2, '恢复全部')
+  console.log('  ✓ 删除差异与类型筛选：基线引文展示、按类型过滤')
+
+  // 7. 重建基线 → 差异清零、已审记录清空
+  clickButton('重建基线')
+  await tick()
+  assert.strictEqual(saved().baseline.entries.length, 1, '基线应以当前标注集重建')
+  assert.strictEqual(saved().baseline.entries[0].note, '再改一次')
+  assert.deepStrictEqual(saved().reviewedDiffs, [], '重建基线应清空已审记录')
+  assert.ok(cs.innerHTML.includes('与基线一致'), '重建后应无差异')
+  console.log('  ✓ 重建基线：差异清零且旧已审记录清空')
+
+  rs.unmount()
+  cs.remove()
+}
+
 console.log('\n全部渲染冒烟测试通过')
