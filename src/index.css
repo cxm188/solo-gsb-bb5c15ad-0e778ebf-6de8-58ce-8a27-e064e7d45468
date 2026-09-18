@@ -1363,6 +1363,224 @@ button {
   box-shadow: 0 0 0 4px rgba(47, 107, 255, 0.28) !important;
 }
 
+/* ---------- 快照对比 ---------- */
+
+.side-heading-snapshot {
+  color: var(--warn);
+}
+
+.snapshot-count-badge {
+  background: var(--warn);
+}
+
+.foot-snapshot {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.snap-toolbar {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.snap-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+
+.snap-summary strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.snap-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.snap-filter {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink-soft);
+  border-radius: 999px;
+  padding: 3px 11px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.snap-filter:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.snap-filter-on,
+.snap-filter-on:hover {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+.snap-item {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-left-width: 3px;
+  border-radius: var(--radius);
+  padding: 9px 11px;
+  margin-bottom: 10px;
+}
+
+.snap-added {
+  border-left-color: #1a6b3c;
+}
+
+.snap-removed {
+  border-left-color: var(--danger);
+}
+
+.snap-modified {
+  border-left-color: #e8a020;
+}
+
+.snap-reviewed {
+  opacity: 0.6;
+}
+
+.snap-active {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(47, 107, 255, 0.18);
+}
+
+.snap-head {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+}
+
+.snap-head .ann-badge {
+  margin-top: 0;
+  align-self: center;
+}
+
+.snap-flag {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 5px;
+  padding: 2px 7px;
+}
+
+.snap-flag-added {
+  background: #ecfdf3;
+  color: #1a6b3c;
+}
+
+.snap-flag-removed {
+  background: #fdeeee;
+  color: #a52727;
+}
+
+.snap-flag-modified {
+  background: var(--warn-bg);
+  color: #945800;
+}
+
+.snap-quote {
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink);
+  cursor: pointer;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.snap-quote:disabled {
+  cursor: default;
+}
+.snap-quote:not(:disabled):hover {
+  text-decoration: underline;
+}
+
+.snap-changes {
+  margin: 8px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.snap-change {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.snap-change-label {
+  flex-shrink: 0;
+  width: 58px;
+  color: var(--ink-faint);
+}
+
+.snap-change-values {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.snap-before {
+  color: #a52727;
+}
+
+.snap-arrow {
+  color: var(--ink-faint);
+}
+
+.snap-after {
+  color: #1a6b3c;
+}
+
+.snap-meta {
+  margin: 6px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.snap-meta-tags {
+  margin: 0;
+}
+
+.snap-meta-note {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.snap-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
 /* ---------- 响应式 ---------- */
 
 @media (max-width: 980px) {

@@ -1,6 +1,7 @@
 import type { DocumentData } from '../types'
 import { normalizeIgnored, normalizeRules } from './conflicts'
 import { normalizeCoverageTags } from './coverage'
+import { normalizeBaseline, normalizeReviewedDiffs } from './snapshot'
 
 const STORAGE_KEY = 'anchor-annotation-console:v1'
 
@@ -21,6 +22,9 @@ export function loadDocument(): DocumentData | null {
       ignoredConflicts: normalizeIgnored(data.ignoredConflicts),
       // 旧版本数据没有覆盖审计配置：无损补空
       coverageTags: normalizeCoverageTags(data.coverageTags),
+      // 旧版本数据没有基线与已审记录：无损补空
+      baseline: normalizeBaseline(data.baseline),
+      reviewedDiffs: normalizeReviewedDiffs(data.reviewedDiffs),
       updatedAt: data.updatedAt ?? Date.now(),
     }
   } catch {

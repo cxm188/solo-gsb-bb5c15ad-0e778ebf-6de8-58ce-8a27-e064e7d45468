@@ -32,6 +32,15 @@ import {
   normalizeCoverageTags,
   type CoverageIssue,
 } from './lib/coverage'
+import {
+  diffSnapshot,
+  makeBaseline,
+  normalizeBaseline,
+  normalizeReviewedDiffs,
+  pruneReviewedDiffs,
+  reviewedKey,
+  type SnapshotDiffItem,
+} from './lib/snapshot'
 import { TextView, type ViewRect } from './components/TextView'
 import { TextEditor } from './components/TextEditor'
 import { Sidebar } from './components/Sidebar'
@@ -62,6 +71,8 @@ const EMPTY_DOC: DocumentData = {
   conflictRules: [],
   ignoredConflicts: [],
   coverageTags: [],
+  baseline: null,
+  reviewedDiffs: [],
   updatedAt: Date.now(),
 }
 
@@ -90,6 +101,7 @@ export default function App() {
   const rootElRef = useRef<HTMLElement | null>(null)
   const conflictSectionRef = useRef<HTMLElement | null>(null)
   const coverageSectionRef = useRef<HTMLElement | null>(null)
+  const snapshotSectionRef = useRef<HTMLElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // 本地持久化
@@ -157,6 +169,34 @@ export default function App() {
       ? { start: activeCoverage.start, end: activeCoverage.end }
       : null
     : null
+
+  // ---------- 标注快照对比 ----------
+
+  // 基线或标注任何变化（编辑 / 删除 / 重绑定 / 原文重定位 / 重命名 / 导入）后自动重算
+  const snapshotDiffs = useMemo(
+    () => diffSnapshot(doc.baseline, doc.annotations),
+    [doc.baseline, doc.annotations],
+  )
+  const reviewedKeySet = useMemo(
+    () => new Set(doc.reviewedDiffs.map((r) => reviewedKey(r.annotationId, r.signature))),
+    [doc.reviewedDiffs],
+  )
+  const pendingReviewCount = useMemo(
+    () => snapshotDiffs.filter((d) => !reviewedKeySet.has(d.key)).length,
+    [snapshotDiffs, reviewedKeySet],
+  )
+
+  // 已审记录清理：差异内容再次变化（签名失效）或恢复成基线（差异消失）后，
+  // 对应「标注 ID + 签名」记录在此移除；命中当前差异的记录保留
+  useEffect(() => {
+    if (pruneReviewedDiffs(doc.reviewedDiffs, snapshotDiffs).length === doc.reviewedDiffs.length) {
+      return
+    }
+    setDoc((d) => ({
+      ...d,
+      reviewedDiffs: pruneReviewedDiffs(d.reviewedDiffs, diffSnapshot(d.baseline, d.annotations)),
+    }))
+  }, [snapshotDiffs, doc.reviewedDiffs])
 
   const highlightIds: string[] = activePairIds
     ? [...activePairIds]
@@ -330,6 +370,63 @@ export default function App() {
     scrollOffsetIntoView(item.start)
   }
 
+  // ---------- 标注快照对比 ----------
+
+  /** 保存 / 重建唯一基线：以当前标注集整体替换，并清空全部已审记录 */
+  const saveBaseline = () => {
+    if (
+      doc.baseline &&
+      !confirm('重建基线将覆盖现有基线，并清空全部已审记录。是否继续？')
+    ) {
+      return
+    }
+    setDoc((d) => ({
+      ...d,
+      baseline: makeBaseline(d.annotations),
+      reviewedDiffs: [],
+      updatedAt: Date.now(),
+    }))
+  }
+
+  const clearBaseline = () => {
+    if (!confirm('清除基线后，全部差异与已审记录将被移除。是否继续？')) return
+    setDoc((d) => ({
+      ...d,
+      baseline: null,
+      reviewedDiffs: [],
+      updatedAt: Date.now(),
+    }))
+  }
+
+  /** 标记 / 取消已审：以「标注 ID + 差异内容签名」落库 */
+  const toggleReview = (item: SnapshotDiffItem) => {
+    setDoc((d) => {
+      const exists = d.reviewedDiffs.some(
+        (r) => reviewedKey(r.annotationId, r.signature) === item.key,
+      )
+      return {
+        ...d,
+        reviewedDiffs: exists
+          ? d.reviewedDiffs.filter(
+              (r) => reviewedKey(r.annotationId, r.signature) !== item.key,
+            )
+          : [
+              ...d.reviewedDiffs,
+              {
+                annotationId: item.annotationId,
+                signature: item.signature,
+                createdAt: Date.now(),
+              },
+            ],
+        updatedAt: Date.now(),
+      }
+    })
+  }
+
+  const scrollToSnapshot = () => {
+    snapshotSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
   // ---------- 编辑原文与重定位 ----------
 
   const applyEdit = (title: string, text: string) => {
@@ -440,6 +537,24 @@ export default function App() {
         createdAt: new Date(g.createdAt).toISOString(),
       })),
       coverageTags: [...doc.coverageTags],
+      baseline: doc.baseline
+        ? {
+            createdAt: new Date(doc.baseline.createdAt).toISOString(),
+            annotations: doc.baseline.annotations.map((b) => ({
+              id: b.id,
+              status: b.status,
+              quote: b.quote,
+              note: b.note,
+              tags: [...b.tags],
+              position: b.status === 'bound' ? { start: b.start, end: b.end } : null,
+            })),
+          }
+        : null,
+      reviewedDiffs: doc.reviewedDiffs.map((r) => ({
+        annotationId: r.annotationId,
+        signature: r.signature,
+        createdAt: new Date(r.createdAt).toISOString(),
+      })),
       annotations: doc.annotations.map((a) => ({
         id: a.id,
         status: a.status,
@@ -496,6 +611,28 @@ export default function App() {
         lastRelocation: x.lastRelocation ?? undefined,
       }))
       const conflictRules = normalizeRules(parsed.conflictRules)
+      // 旧版导出文件不含基线 / 已审记录：无损补空
+      const baselineRaw = parsed.baseline
+      const baseline =
+        baselineRaw && typeof baselineRaw === 'object'
+          ? normalizeBaseline({
+              createdAt: baselineRaw.createdAt,
+              annotations: (baselineRaw.annotations ?? []).map((b) => ({
+                id: b.id,
+                status: b.status,
+                quote: b.quote,
+                note: b.note,
+                tags: b.tags,
+                start: b.position?.start ?? 0,
+                end: b.position?.end ?? 0,
+              })),
+            })
+          : null
+      // 仅保留仍能命中导入后差异的已审记录
+      const reviewedDiffs = pruneReviewedDiffs(
+        normalizeReviewedDiffs(parsed.reviewedDiffs),
+        diffSnapshot(baseline, annotations),
+      )
       setDoc({
         title: parsed.document.title,
         text: parsed.document.text,
@@ -509,6 +646,8 @@ export default function App() {
         ),
         // 旧版导出文件不含覆盖审计配置：无损补空
         coverageTags: normalizeCoverageTags(parsed.coverageTags),
+        baseline,
+        reviewedDiffs,
         updatedAt: Date.now(),
       })
       setMode('view')
@@ -584,6 +723,16 @@ export default function App() {
             >
               覆盖审计
               {coverageIssueCount > 0 && <span className="topbar-count">{coverageIssueCount}</span>}
+            </button>
+          )}
+          {mode === 'view' && (
+            <button
+              className={`btn ${pendingReviewCount > 0 ? 'btn-warn' : 'btn-ghost'}`}
+              onClick={scrollToSnapshot}
+              title="与基线快照对比标注差异"
+            >
+              快照对比
+              {pendingReviewCount > 0 && <span className="topbar-count">{pendingReviewCount}</span>}
             </button>
           )}
           <button className="btn btn-ghost" onClick={() => fileInputRef.current?.click()}>
@@ -674,6 +823,9 @@ export default function App() {
               {doc.coverageTags.length > 0 && coverageIssueCount > 0 && (
                 <span className="foot-coverage">（{coverageIssueCount} 处覆盖问题）</span>
               )}
+              {doc.baseline && pendingReviewCount > 0 && (
+                <span className="foot-snapshot">（{pendingReviewCount} 条快照差异待审）</span>
+              )}
               {' '}· 数据自动保存在本浏览器
             </footer>
           </section>
@@ -691,6 +843,13 @@ export default function App() {
             onChangeCoverageTags={changeCoverageTags}
             onFocusCoverage={focusCoverageIssue}
             coverageSectionRef={coverageSectionRef}
+            baseline={doc.baseline}
+            snapshotDiffs={snapshotDiffs}
+            reviewedKeys={reviewedKeySet}
+            onSaveBaseline={saveBaseline}
+            onClearBaseline={clearBaseline}
+            onToggleReview={toggleReview}
+            snapshotSectionRef={snapshotSectionRef}
             onFocus={focusAnnotation}
             onEdit={(a) =>
               setPopover({

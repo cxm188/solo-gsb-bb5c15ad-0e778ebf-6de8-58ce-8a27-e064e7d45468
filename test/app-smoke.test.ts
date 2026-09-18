@@ -507,6 +507,170 @@ console.log('  ✓ 冲突审阅面板（含忽略折叠与交叠高亮）渲染�
   c2.remove()
 }
 
+// 快照对比：基线保存 → 删除/修改差异 → 已审签名 → 重建基线清空已审
+{
+  // App 中删除标注 / 重建基线走 confirm；jsdom 未实现，打桩为总是确认
+  ;(globalThis as unknown as { confirm: () => boolean }).confirm = () => true
+  window.confirm = () => true
+
+  const snapText = '零一二三四五六七八九十'
+  const snapDoc = {
+    title: '快照文档',
+    text: snapText,
+    updatedAt: Date.now(),
+    annotations: [
+      {
+        id: 'sn_a',
+        quote: '零一',
+        start: 0,
+        end: 2,
+        note: '备注A',
+        tags: ['甲'],
+        status: 'bound',
+        createdAt: 1,
+        updatedAt: 1,
+        contextBefore: '',
+        contextAfter: '',
+      },
+      {
+        id: 'sn_b',
+        quote: '三四',
+        start: 3,
+        end: 5,
+        note: '',
+        tags: [],
+        status: 'bound',
+        createdAt: 1,
+        updatedAt: 1,
+        contextBefore: '',
+        contextAfter: '',
+      },
+    ],
+  }
+  localStorage.setItem('anchor-annotation-console:v1', JSON.stringify(snapDoc))
+  const c = document.createElement('div')
+  c.id = 'rootsnap'
+  document.body.appendChild(c)
+  const r = createRoot(c)
+
+  await new Promise<void>((resolve) => {
+    r.render(React.createElement(React.StrictMode, null, React.createElement(App)))
+    setTimeout(resolve, 100)
+  })
+
+  const clickButton = (text: string) => {
+    const btn = [...c.querySelectorAll('button')].find(
+      (b) => b.textContent?.trim() === text,
+    ) as HTMLButtonElement | undefined
+    assert.ok(btn, `应存在按钮「${text}」`)
+    btn!.click()
+    return btn!
+  }
+  const saved = () => JSON.parse(localStorage.getItem('anchor-annotation-console:v1')!)
+  const wait = () => new Promise<void>((resolve) => setTimeout(resolve, 50))
+  const doRename = async (source: string, target: string) => {
+    clickButton('标签重命名')
+    await wait()
+    const select = c.querySelector('.rename-fields select') as HTMLSelectElement
+    select.value = source
+    select.dispatchEvent(new window.Event('change', { bubbles: true }))
+    const input = c.querySelector('.rename-fields input') as HTMLInputElement
+    const setValue = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype,
+      'value',
+    )!.set!
+    setValue.call(input, target)
+    input.dispatchEvent(new window.Event('input', { bubbles: true }))
+    await wait()
+    clickButton('确认重命名')
+    await wait()
+  }
+
+  assert.ok(c.innerHTML.includes('快照对比'), '应渲染快照对比分区')
+  assert.ok(c.innerHTML.includes('保存当前为基线'), '无基线时应显示保存入口')
+
+  // 1. 保存基线 → 无差异，基线持久化
+  clickButton('保存当前为基线')
+  await wait()
+  assert.ok(c.innerHTML.includes('当前标注与基线一致'), '刚保存基线后应无差异')
+  assert.strictEqual(saved().baseline.annotations.length, 2, '基线应含 2 条标注快照')
+  assert.deepStrictEqual(saved().reviewedDiffs, [])
+
+  // 2. 删除 sn_b → 删除差异展示基线引文；类型筛选可用
+  const snbItem = [...c.querySelectorAll('.ann-item')].find((el) =>
+    el.textContent?.includes('三四'),
+  ) as HTMLElement
+  assert.ok(snbItem, '应找到 sn_b 的标注卡片')
+  const delBtn = [...snbItem.querySelectorAll('button')].find(
+    (b) => b.textContent?.trim() === '删除',
+  ) as HTMLButtonElement
+  delBtn.click()
+  await wait()
+  const removedCard = c.querySelector('.snap-item.snap-removed')
+  assert.ok(removedCard, '应出现删除差异卡片')
+  assert.ok(
+    removedCard!.querySelector('.snap-quote')?.textContent?.includes('三四'),
+    '删除项应展示基线引文',
+  )
+  assert.ok(!removedCard!.textContent?.includes('定位'), '删除项不可定位')
+  // 筛选：新增类型下没有差异
+  const filterAdded = [...c.querySelectorAll('.snap-filter')].find((b) =>
+    b.textContent?.startsWith('新增'),
+  ) as HTMLButtonElement
+  filterAdded.click()
+  await wait()
+  assert.ok(c.innerHTML.includes('该类型下没有差异项'), '新增筛选下应无差异项')
+  const filterAll = [...c.querySelectorAll('.snap-filter')].find((b) =>
+    b.textContent?.startsWith('全部'),
+  ) as HTMLButtonElement
+  filterAll.click()
+  await wait()
+
+  // 3. 标记已审 → 以「标注 ID + 签名」持久化
+  clickButton('标记已审')
+  await wait()
+  assert.strictEqual(saved().reviewedDiffs.length, 1, '已审记录应持久化')
+  assert.strictEqual(saved().reviewedDiffs[0].annotationId, 'sn_b')
+  assert.ok(saved().reviewedDiffs[0].signature.length > 0)
+  assert.ok(c.innerHTML.includes('取消已审'), '已审后应可取消')
+
+  // 4. 重建基线 → 差异清空、已审记录清空
+  clickButton('重建基线')
+  await wait()
+  assert.ok(c.innerHTML.includes('当前标注与基线一致'), '重建基线后应无差异')
+  assert.strictEqual(saved().baseline.annotations.length, 1, '基线应重建为当前 1 条标注')
+  assert.deepStrictEqual(saved().reviewedDiffs, [], '重建基线应清空已审记录')
+
+  // 5. 标签重命名 甲→乙 → 修改差异逐字段列出标签前后值
+  await doRename('甲', '乙')
+  const modCard = c.querySelector('.snap-item.snap-modified')
+  assert.ok(modCard, '应出现修改差异卡片')
+  assert.ok(modCard!.textContent?.includes('标签'), '修改项应列出标签字段')
+  assert.ok(modCard!.textContent?.includes('#甲'), '修改项应列出基线标签')
+  assert.ok(modCard!.textContent?.includes('#乙'), '修改项应列出当前标签')
+  assert.ok(c.innerHTML.includes('条快照差异待审'), '页脚应显示待审差异数')
+
+  // 6. 标记已审 → 持久化；内容再次变化（乙→丙）→ 重新出现为未审
+  clickButton('标记已审')
+  await wait()
+  assert.strictEqual(saved().reviewedDiffs.length, 1)
+  await doRename('乙', '丙')
+  assert.deepStrictEqual(saved().reviewedDiffs, [], '签名失效的已审记录应被清理')
+  assert.ok(
+    c.querySelector('.snap-item.snap-modified')?.textContent?.includes('标记已审'),
+    '内容再次变化后应重新出现为未审',
+  )
+
+  // 7. 恢复成基线（丙→甲）→ 差异移除
+  await doRename('丙', '甲')
+  assert.ok(c.innerHTML.includes('当前标注与基线一致'), '恢复成基线后差异应移除')
+  assert.deepStrictEqual(saved().reviewedDiffs, [])
+
+  r.unmount()
+  c.remove()
+  console.log('  ✓ 快照对比：基线、删除/修改差异、已审签名、重建清空与持久化')
+}
+
 // 旧版数据（无 conflictRules / ignoredConflicts 字段）应无损加载
 const legacy = {
   title: '旧文档',
@@ -537,6 +701,8 @@ const reparsed = JSON.parse(localStorage.getItem('anchor-annotation-console:v1')
 assert.ok(Array.isArray(reparsed.conflictRules) && reparsed.conflictRules.length === 0)
 assert.ok(Array.isArray(reparsed.ignoredConflicts) && reparsed.ignoredConflicts.length === 0)
 assert.ok(Array.isArray(reparsed.coverageTags) && reparsed.coverageTags.length === 0)
+assert.strictEqual(reparsed.baseline, null)
+assert.ok(Array.isArray(reparsed.reviewedDiffs) && reparsed.reviewedDiffs.length === 0)
 assert.strictEqual(reparsed.text, '一二三四五六')
 console.log('  ✓ 旧数据无损兼容并自动补齐冲突字段')
 

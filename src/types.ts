@@ -61,6 +61,34 @@ export interface IgnoredConflict {
   createdAt: number
 }
 
+/** 基线中的一条标注快照（建立基线时刻的内容） */
+export interface BaselineAnnotation {
+  id: string
+  status: AnnotationStatus
+  quote: string
+  note: string
+  tags: string[]
+  start: number
+  end: number
+}
+
+/** 唯一基线：保存时刻的全部标注快照；重建时整体替换 */
+export interface AnnotationBaseline {
+  createdAt: number
+  annotations: BaselineAnnotation[]
+}
+
+/**
+ * 一条快照差异的已审记录：标注 ID + 差异内容签名。
+ * 内容再次变化 → 签名改变，记录不再命中（差异重新出现为未审）；
+ * 恢复成基线 → 差异消失，记录被清理；重建基线 → 全部清空。
+ */
+export interface ReviewedDiff {
+  annotationId: string
+  signature: string
+  createdAt: number
+}
+
 export interface DocumentData {
   title: string
   text: string
@@ -71,6 +99,10 @@ export interface DocumentData {
   ignoredConflicts: IgnoredConflict[]
   /** 标签覆盖审计：应共同覆盖全文的标签集合 */
   coverageTags: string[]
+  /** 标注基线快照（唯一；null 表示尚未建立） */
+  baseline: AnnotationBaseline | null
+  /** 快照差异已审记录：标注 ID + 差异内容签名 */
+  reviewedDiffs: ReviewedDiff[]
   updatedAt: number
 }
 
@@ -97,6 +129,24 @@ export interface ExportPayload {
   }>
   /** 标签覆盖审计选择的标签（旧版文件缺省时按空数组处理） */
   coverageTags: string[]
+  /** 标注基线快照（旧版文件缺省时按 null 处理） */
+  baseline: {
+    createdAt: string
+    annotations: Array<{
+      id: string
+      status: AnnotationStatus
+      quote: string
+      note: string
+      tags: string[]
+      position: { start: number; end: number } | null
+    }>
+  } | null
+  /** 快照差异已审记录：标注 ID + 差异内容签名（旧版文件缺省时按空数组处理） */
+  reviewedDiffs: Array<{
+    annotationId: string
+    signature: string
+    createdAt: string
+  }>
   annotations: Array<{
     id: string
     status: AnnotationStatus
